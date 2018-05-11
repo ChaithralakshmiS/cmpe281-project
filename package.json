@@ -1,5 +1,5 @@
 {
-  "name": "BooksMart App",
+  "name": "app",
   "version": "0.3.0",
   "description": "A Node.js shopping app using Express 4",
   "engines": {
