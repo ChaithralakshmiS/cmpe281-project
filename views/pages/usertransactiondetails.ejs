@@ -1,0 +1,72 @@
+<!-- views/pages/userid.ejs -->
+<head>
+    <% include ../common/head %>
+</head>
+<% include ../common/body %>
+<main>
+<div class="jumbotron">
+
+
+    <h2>Your Transaction Details</h2>
+
+    <form action="/gettransactions" method="GET">
+
+	<input type="hidden" name="user_id" value=<%= userid%>>
+
+	<table>
+	    <tr>
+		<td>&nbsp;</td>
+	    </tr>
+	    <tr>
+		<td> Transaction Id :
+		    <%= transactionid%>
+		</td>
+	    </tr>
+	    <tr>
+		<td>&nbsp;</td>
+	    </tr>
+	    <tr>
+		<td> Transaction Date :
+		    <%= transactionddate%>
+		</td>
+	    </tr>
+	    <tr>
+		<td>&nbsp;</td>
+	    </tr>
+	    <tr>
+		<td> Transaction Total :
+		    <%= transactiontotal%>
+		</td>
+	    </tr>
+	    <tr>
+		<td>&nbsp;</td>
+	    </tr>
+	    
+	    <table>
+	    <tr><th>&nbsp;&nbsp; Books &nbsp;&nbsp;</th><th>&nbsp;&nbsp; Quantity &nbsp;&nbsp;</th>
+		<th> &nbsp;&nbsp;Rate &nbsp;&nbsp;</th> <th> &nbsp;&nbsp;Total Items Price &nbsp;&nbsp;</th> </tr>
+
+		    <% for(var i=0; i < arr.length; i++) { %>
+		      
+			<tr>
+		    <td>&nbsp;&nbsp; <%=  arr[i].product %>&nbsp;&nbsp;</td>
+		    <td>&nbsp;&nbsp; <%=  arr[i].quantity %> &nbsp;&nbsp;</td>
+		    <td>&nbsp;&nbsp; <%=  arr[i].rate %>&nbsp;&nbsp;</td>
+		    <td>&nbsp;&nbsp; <%=  arr[i].total %>&nbsp;&nbsp; </td>
+
+		    
+		       </tr>
+		   
+		       <% } %>
+		    
+	    </table>
+
+	</table>
+
+	<input type="submit" value="Back to Transactions History">  
+
+    </form>
+
+
+</div>
+</main>

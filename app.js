@@ -1,0 +1,620 @@
+var express = require('express');
+var axios = require('axios');
+var path = require('path');
+var app = express();
+var XMLHttpRequest = require("xmlhttprequest").XMLHttpRequest;
+var bodyParser = require('body-parser');
+var csurf = require('csurf');
+var session = require('express-session');
+var cookieParser = require('cookie-parser');
+var dialog = require('dialog');
+var Client = require('node-rest-client').Client;
+
+var favicon = require('serve-favicon');
+var logger = require('morgan');
+var del_client = require('request');
+
+//var index = require('./routes/cart_index');
+//var users = require('./routes/cart_users');
+
+app.set('port', (process.env.PORT || 5000));
+
+app.use(bodyParser.urlencoded({ extended: true }));
+app.use(bodyParser.json());
+app.use(cookieParser());
+app.use(session({
+	secret: 'mysupersecret', 
+	resave: false, 
+	saveUninitialiazed: false,
+	cookie: { maxAge: 180 * 60 * 1000} //in milliseconds 
+}));
+
+app.use(express.static(__dirname + '/public'));
+// views is directory for all template files
+app.set('views', __dirname + '/views');
+app.set('view engine', 'ejs');
+
+var productCatalogServer = "http://productapi-elb-2141657141.us-west-1.elb.amazonaws.com:80/";
+var userloginServer = "http://lb-userapi-1276859448.us-west-1.elb.amazonaws.com:80/"
+var shoppingCartServer= "http://ec2co-ecsel-1i9hkjpxoll0u-1349812821.us-west-2.elb.amazonaws.com:3000/"
+var shoppingDeleteServer ="http://ec2co-ecsel-1i9hkjpxoll0u-1349812821.us-west-2.elb.amazonaws.com";
+var UserOrderHistoryServer = "http://projectLoadBalancer-1857260383.us-west-1.elb.amazonaws.com:3000/";
+var CheckoutPaymentServer = "http://api-load-balancer-173802822.us-west-1.elb.amazonaws.com:4500/"
+
+var isLoggedIn = false;
+var array = [];
+var cartQuantity = 0;
+var uSession;
+var products = Object();
+var cartclicks = 0;
+
+products.items = [];
+
+app.post('/getusertransactiondetails', function (req, res) {
+  console.log("start of getusertransactiondetails.");
+  console.log(req.body);
+
+
+  //User_id missing in input
+  if (!req.session.userid) {
+    var userhistoryerror = "User id is missing";
+       res.render('pages/userhistoryerror', {
+      userhistoryerror: userhistoryerror,
+      login: isLoggedIn,
+      cartQuantity: cartQuantity
+    });
+    console.log("User id is not being sent");
+  }
+  //Transaction_id missing in input
+  else if (!req.body.transaction_id) {
+    // res.status(500); 
+    req.body.transaction_id = "null";
+    var userhistoryerror = "Transaction id is missing";
+     res.render('pages/userhistoryerror', {
+      userhistoryerror: userhistoryerror,
+      login: isLoggedIn,
+      cartQuantity: cartQuantity
+    });
+    console.log("Transaction id missing");
+  }
+
+
+//All required inputs have been received
+  else {
+
+    var client = new Client();
+
+    var url = UserOrderHistoryServer + "getTransactionDetailsHandler/" + req.session.userid + "/" + req.body.transaction_id;
+    client.get(url, function (data, response) {
+
+      if (!data) {
+        var userhistoryerror = "Oops! Looks like something went wrong. Please try later!";
+
+        res.render('pages/userhistoryerror', {
+          userhistoryerror: userhistoryerror,
+	  login: isLoggedIn,
+	  cartQuantity: cartQuantity
+        });
+      }
+    
+      var response = JSON.stringify(data);	
+      console.log("Response received from goapi");
+      console.log(response);
+
+      //User Id / Transaction details not found in Riak database
+      if (response == "[]") {
+        var userhistoryerror = "User id - " + req.session.userid + " not found";
+
+        res.render('pages/userhistoryerror', {
+          userhistoryerror: userhistoryerror,
+	  login: isLoggedIn,
+	  cartQuantity: cartQuantity
+        });
+      }
+
+      //No error.Prepare output for html
+     
+      var arr_parse = JSON.parse(response);
+      console.log("Parsed data");
+      console.log(arr_parse);
+
+      //send to html
+      var userid = req.session.userid;
+      var transactionid = arr_parse.uTransactionId;
+      var transactionddate = arr_parse.uTransactionsDate;
+      var transactiontotal = arr_parse.uTransactiontotal;
+      var transactionitems = arr_parse.uTransactionItems;
+      //
+      console.log(transactionid);
+      console.log(transactionddate);
+      console.log(transactiontotal);
+
+
+      console.log("end of getusertransactiondetails.");
+      
+      //Render
+      res.render('pages/usertransactiondetails', {
+        userid: userid, transactionid: transactionid,
+        transactionddate: transactionddate,
+        transactiontotal: transactiontotal,
+        arr: transactionitems,
+	login: isLoggedIn,
+	cartQuantity: cartQuantity
+      });
+
+
+
+
+    });
+ }
+})
+app.get('/gettransactions', function (req, res) {
+
+  var userhistoryerror = "";
+  console.log("start of gettransactions.");
+
+  //If user_id is empty, send error message
+  if (!req.session.userid) {
+    console.log("User id Input missing");
+    var userhistoryerror = "User id is Missing. Please enter a user id";
+    res.render('pages/userhistoryerror', {
+      userhistoryerror: userhistoryerror,
+      login: isLoggedIn,
+      cartQuantity: cartQuantity
+    }); 
+  }
+
+  
+  
+  //All required inputs have been received
+  else {
+    console.log("All required inputs have been received");
+    var client = new Client();
+    var url = UserOrderHistoryServer + "getusertransactions/" + req.session.userid;
+    console.log("Calling goapi");
+    
+  
+    client.get(url, function (data, response) {
+      
+      //Unexpected error 
+      if (!data) {
+        var userhistoryerror = "Oops! Looks like something went wrong. Please try later!";
+
+        res.render('pages/userhistoryerror', {
+          userhistoryerror: userhistoryerror
+        });
+	return;
+      }
+      
+     var response = JSON.stringify(data);
+      
+      //Response received from goapi
+      console.log("Response received from goapi");
+      console.log(data);
+
+      //No Transactions found or User Id not found
+      if (response == "[]") {
+        var userhistoryerror = "No Transactions found or User Id not found";
+
+        res.render('pages/userhistoryerror', {
+          userhistoryerror: userhistoryerror,
+	  login: isLoggedIn,
+	  cartQuantity: cartQuantity
+        });
+	return;
+      }
+      //No error. Send the transaction history
+      console.log(response);
+      console.log("end of gettransactions.");
+
+      //Render the page
+      res.render('pages/usertransactions', {
+        userid: req.session.userid,
+        arr: JSON.parse(response),
+	login: isLoggedIn,
+	cartQuantity: cartQuantity
+      });
+    });
+  }
+});
+
+app.get('/checkout', function(request, response){
+		
+		if (request.session.userid) {
+			//get products
+			var client = new Client();
+			var url = shoppingCartServer + "history/" + request.session.userid;
+			var read = client.get(url, function(data, get_resp) {
+				var obj_data = data[0];
+				console.log("DATA RECEIVED:" + JSON.stringify(obj_data));
+				var isLoggedIn = true;
+				response.render('shop/checkout', {login: isLoggedIn, totalAmount: obj_data.total, cartQuantity: cartQuantity, products: obj_data.items});
+			});
+			
+			read.on('error', function(err) {
+				response.redirect(req.get('referer'));
+			});
+		}
+		else {
+			response.redirect('/signin');
+		}
+});
+
+app.post('/checkout', function(request, response){
+	
+	var product_list = JSON.parse(request.body.products);
+	
+	if (request.body.pay === "Cancel") {
+		response.redirect("/");
+		return
+	}
+	
+	var client = new Client();
+	var url = CheckoutPaymentServer + "transaction";
+	var args = {
+		data: { "UserId": request.body.userid,
+			"PaymentType": "Card", 
+			"Name": request.body.card_name, 
+			"UsernameId": request.body.card_number, 
+			"Password": request.body.card_cvv, 
+			"Amount": parseFloat(request.body.amount)
+		},
+		headers: { "Content-Type": "application/json"}
+	};
+	
+	var send_post = client.post(url,args,function(data,post_response){
+		var processed_data = data;
+		var history_url = UserOrderHistoryServer + "addtransaction/{" + request.session.userid + "}";
+		var items = [];
+		
+		
+		for (i = 0; i < product_list.length; i++) {
+				var total = product_list[i].count * product_list[i].rate;
+				items.push({
+					"product": product_list[i].name,
+					"quantity": product_list[i].count.toString(),
+					"rate": product_list[i].rate.toString(),
+					"total": total.toString() 
+					}
+				);
+		}
+		
+		var uh_args = {
+			data: {
+				"userid": request.session.userid,
+				"utransactionid": processed_data.Id,
+				"utransactionitems": items,
+				"utransactiontotal": request.body.amount.toString()
+			}
+		}
+		
+		console.log("History DATA: " + uh_args);
+		var hist_post = client.post(history_url, uh_args, function(data, history_resp) {
+				cartQuantity = 0;
+				products.items = [];
+				
+				var url = shoppingCartServer + "clearCart/" + request.session.userid;
+				client.delete(url, function(data, resp) {
+					dialog.info(processed_data.Status, "Payment Placement", function(code){
+						response.redirect("/");
+					});
+				});
+		});
+		
+		hist_post.on("error", function(err) {
+				console.log(err);
+				response.redirect(request.get('referer'));
+		});
+		
+	});
+	
+	send_post.on('error', function(err) {
+		console.log(err.toString())
+		dialog.warn("Payment did not process", "Payment Placement Failure", function(code) {
+				response.redirect(request.get('referer'));
+		});
+	});
+	
+});
+
+app.get('/add-to-cart/:id', function(request, response) {
+	
+	var productId = request.params["id"];
+	if (!request.session.userid)
+	{
+	  	cartQuantity = 0;
+	 	response.render('user/signin', {login: isLoggedIn, cartQuantity: cartQuantity});
+		return;
+	}
+	else 
+	{
+	    var xmlhttp = new XMLHttpRequest();
+	    xmlhttp.open("GET", productCatalogServer + "products/"+productId);  
+	    xmlhttp.setRequestHeader("Content-Type", "application/json");
+	    xmlhttp.send();
+	    xmlhttp.onreadystatechange = function() 
+	    {
+	    	if (this.readyState === 4 && this.status === 200) 
+	        {
+			var product = JSON.parse(this.responseText);
+			var isFound = false;
+			for(i = 0; i < products.items.length; i++)
+			{	
+				if (products.items[i].name === product.title_register)
+				{
+						isFound = true;
+						products.items[i].count++;
+						break;
+				}
+			}
+			
+			if (isFound == false) {
+				products.items.push({"name": product.title_register, "count":1, "rate": parseFloat(product.price_register)});
+			}
+			
+			cartQuantity++;
+			
+			//console.log(products.items);
+			
+			return response.redirect(request.get('referer'));
+		}
+	   }
+	}
+});
+
+app.get('/go-to-cart', function(request, response) {
+	
+	var del_url = shoppingCartServer + "clearCart/" + request.session.userid;
+	var waterfall = require('async-waterfall');
+	
+	waterfall([
+		function(callback){
+			var client = new Client();
+			var del = client.delete(del_url, function(request, response) {
+					callback(null);
+			});
+			
+			del.on('error', function(err) {
+					console.log("ERROR: " + err);
+					response.redirect("/");
+			});
+		},
+		function(callback){
+			dialog.info("Going To Shopping Cart", "Access Shopping Cart", function(code) {
+					response.redirect("/shopping-cart");
+			});
+		}
+	]);
+});
+
+app.get('/shopping-cart', function(request, response) {
+		var client = new Client();
+		var args = {
+			data: { "userId": "" + request.session.userid, 
+				"items": products.items
+			},
+			headers: { "Content-Type": "application/json"}
+		};
+		
+		console.log("ARGS: " + JSON.stringify(args));
+		
+		var url = shoppingCartServer + "order/" + request.session.userid;
+					
+		var send_post = client.post(url, args, function(data, resp) {
+				console.log("RESPONSE: " + JSON.stringify(data));
+				response.redirect("/cart");
+		});
+		
+		send_post.on('error', function(err) {
+			console.log(err.toString())
+			dialog.warn("Could not add to cart", "Add to Cart Failure", function(code) {
+					response.redirect(request.get('referer'));
+			});
+		});
+		
+		
+		/*
+		var get_url = shoppingCartServer + "history/" + request.session.userid;
+		var getter = client.get(get_url, function(data,qet_resp) {
+				console.log("getting ready...." + JSON.stringify(data));
+				
+				if (!Array.isArray(data) || !data.length) {
+					var url = shoppingCartServer + "order/" + request.session.userid;
+					
+					var send_post = client.post(url, args, function(data, resp) {
+							console.log("RESPONSE: " + JSON.stringify(data));
+							response.redirect("/cart");
+					});
+					
+					send_post.on('error', function(err) {
+						console.log(err.toString())
+						dialog.warn("Could not add to cart", "Add to Cart Failure", function(code) {
+								response.redirect(request.get('referer'));
+						});
+					});
+				}
+		});
+		*/
+		
+});	
+	
+app.get('/cart', function (request,response) {
+	try{
+	    if (request.session.userid === "")
+	    {
+	    	cartQuantity = 0;
+	    	//return response.render('user/signin', {login: isLoggedIn, cartQuantity: cartQuantity});
+		return response.redirect("/");
+	    }     
+	    else
+	    {
+		uSession = request.session.sessionvalue;
+	    	uId = request.session.userid;
+	    	
+		var client = new Client();
+		var url = shoppingCartServer + "history/" + uId;
+		console.log(url);
+	        
+		var get_cart = client.get(url, function(data, resp) {
+			console.log("API call to cart API successful.");
+			console.log(JSON.stringify(data));
+			if(data.length > 0 && data[0].items) {
+				
+				response.render('pages/cart', {total: data[0].total, user: request.session.userid, items: data[0].items, login: isLoggedIn, cartQuantity: cartQuantity})
+			}
+			else {
+				response.render('pages/cart', {total: 0, user: request.session.userid, items: [], login: isLoggedIn, cartQuantity: cartQuantity})
+			}
+		});
+		
+		get_cart.on('error', function(err) {
+				console.log(err);
+				return response.redirect("/");
+		});
+	    }
+	}
+	catch(e) {
+	    	//Display alert box and redirect to signin page
+	    	if(e.name == "TypeError")
+	    	    response.render('user/signin', {login: isLoggedIn, cartQuantity: cartQuantity});
+	    
+	}
+	
+});
+
+app.get('/signup', function(request, response) {
+  response.render('user/signup', {login: isLoggedIn, cartQuantity: cartQuantity});
+});
+
+app.post('/signup', function(request, response) {
+	console.log("before POST");
+	if(request.body.submit == "Cancel") {
+		console.log("Cancel was pressed");
+		response.redirect('/');
+		return;
+	}
+	
+	var xmlhttp = new XMLHttpRequest();
+	xmlhttp.open("POST", userloginServer+ "user");
+	xmlhttp.setRequestHeader("Content-Type", "application/json");
+	var temp_userId = request.body.inputUsername;
+	var jsonToSend = {
+		"UserId": request.body.inputUsername,
+		"Name":  request.body.name,
+		"Email": request.body.inputPassword
+	};
+	console.log(JSON.stringify(jsonToSend));
+	xmlhttp.send(JSON.stringify(jsonToSend));
+    xmlhttp.onreadystatechange = function() 
+    {
+    	console.log("here");
+    	console.log (this.status);
+    	console.log(this.readyState);
+   		if (this.readyState === 4 && this.status === 200) 
+		{
+			console.log("User API call successful. Status: " + this.status);
+			isLoggedIn = true;
+			request.session.userid = request.body.inputUsername;
+			var products_array = JSON.parse(this.responseText);
+			cartQuantity = 0;
+			response.redirect("/")
+			//response.render('./pages/product_catalog', {products: products_array, login: isLoggedIn, cartQuantity: cartQuantity});
+		}
+	}	
+});
+
+app.get('/signin', function(request, response) { 
+	if (request.session.userid) {
+		console.log("Already logged in");
+		return response.redirect("/");
+	}
+	response.render('user/signin', {login: isLoggedIn, cartQuantity: cartQuantity});
+});
+
+app.post('/signin', function(request, response) {
+		console.log("In Signin");
+		inputID = parseInt(request.body.inputUsername);
+		var xmlhttp = new XMLHttpRequest(); 
+		xmlhttp.open("GET", userloginServer+ "user/" +inputID);  
+		xmlhttp.setRequestHeader("Content-Type", "application/json");
+		xmlhttp.send();
+		xmlhttp.onreadystatechange = function() 
+		{
+			if (this.readyState === 4 && this.status === 200) 
+			{
+				console.log("API call to user API successful. Status: " + this.status);
+				var responseText = JSON.parse(this.responseText);
+				if (responseText.UserId == inputID)
+				{
+					var xmlhttp1 = new XMLHttpRequest(); 
+					xmlhttp1.open("GET", productCatalogServer+ "products");  
+					xmlhttp1.setRequestHeader("Content-Type", "application/json");
+					xmlhttp1.send();
+					xmlhttp1.onreadystatechange = function() 
+					{
+						if (this.readyState === 4 && this.status === 200) 
+						{
+							var products_array = JSON.parse(this.responseText);
+							isLoggedIn = true;
+							request.session.userid = inputID;
+							return response.render('./pages/product_catalog', {products: products_array, login: isLoggedIn, cartQuantity: cartQuantity});
+						}
+					}
+				}
+				else {
+					dialog.warn("User not found", "Not Found User", function(code) {
+						response.redirect(request.get('referer'));
+					});
+				}
+			}
+			else if (this.readyState === 4 && this.status !== 200) {
+				dialog.warn("System is currently not available", "Part of system down", function(code) {
+						response.redirect(request.get('referer'));
+				});
+			}
+		}
+		
+});
+
+app.get('/', function(request, response){
+	console.log("In Homepage fetch ");
+	if (request.session.userid) {
+		isLoggedIn = true;
+	}
+	else {
+		isLoggedIn = false;
+	}
+	var xmlhttp = new XMLHttpRequest(); 
+	xmlhttp.open("GET", productCatalogServer+ "products");  
+	xmlhttp.setRequestHeader("Content-Type", "application/json");
+	xmlhttp.send();
+	xmlhttp.onreadystatechange = function() {
+		if (this.readyState === 4 && this.status === 200) {
+			var products_array = JSON.parse(this.responseText);
+			response.render('./pages/product_catalog', {products: products_array, login: isLoggedIn, cartQuantity: cartQuantity});
+		}
+	}
+});
+
+app.get('/logout', function(request, response){
+	console.log ("In logout");
+	var xmlhttp = new XMLHttpRequest(); 
+	xmlhttp.open("GET", productCatalogServer+ "products");  
+	xmlhttp.setRequestHeader("Content-Type", "application/json");
+	xmlhttp.send();
+	xmlhttp.onreadystatechange = function() {
+		if (this.readyState === 4 && this.status === 200) {
+			console.log("API call to product API successful. Status: " + this.status);
+			var products_array = JSON.parse(this.responseText);
+			isLoggedIn = false;
+			request.session.destroy();
+			cartQuantity = 0;
+			response.redirect("/");
+			//response.render('./pages/product_catalog', {products: products_array, login: isLoggedIn, cartQuantity: cartQuantity});
+		}
+	}
+});
+
+app.listen(process.env.PORT || 5000, function() {
+  console.log('Node app is running on port ' + app.get('port'));
+});
