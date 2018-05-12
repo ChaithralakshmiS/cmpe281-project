@@ -30,6 +30,7 @@ app.use(session({
 }));
 
 app.use(express.static(__dirname + '/public'));
+
 // views is directory for all template files
 app.set('views', __dirname + '/views');
 app.set('view engine', 'ejs');
@@ -37,16 +38,12 @@ app.set('view engine', 'ejs');
 var productCatalogServer = "http://productapi-elb-2141657141.us-west-1.elb.amazonaws.com:80/";
 var userloginServer = "http://lb-userapi-1276859448.us-west-1.elb.amazonaws.com:80/"
 var shoppingCartServer= "http://ecs-cali-1807036812.us-west-1.elb.amazonaws.com:80/"
-var shoppingDeleteServer ="http://ec2co-ecsel-1i9hkjpxoll0u-1349812821.us-west-2.elb.amazonaws.com";
-var UserOrderHistoryServer = "http://54.183.82.226:3000/" //"http://projectLoadBalancer-1857260383.us-west-1.elb.amazonaws.com:3000/";
+var UserOrderHistoryServer = "http://projectLoadBalancer-1857260383.us-west-1.elb.amazonaws.com:3000/";
 var CheckoutPaymentServer = "http://api-load-balancer-173802822.us-west-1.elb.amazonaws.com:4500/"
 
 var isLoggedIn = false;
-var array = [];
 var cartQuantity = 0;
-var uSession;
 var products = Object();
-var cartclicks = 0;
 
 products.items = [];
 products.total = 0;
@@ -136,7 +133,7 @@ app.post('/getusertransactiondetails', function (req, res) {
       //Render
       res.render('pages/usertransactiondetails', {
         userid: userid, transactionid: transactionid,
-        transactionddate: transactionddate,
+        transactiondate: transactionddate,
         transactiontotal: transactiontotal,
         arr: transactionitems,
 	login: isLoggedIn,
@@ -292,6 +289,7 @@ app.post('/checkout', function(request, response){
 		console.log("History DATA: " + JSON.stringify(uh_args.data));
 		try {
 		var hist_post = client.post(history_url, uh_args, function(data, history_resp) {
+				console.log("USER HISTORY POST DATA: " + JSON.stringify(data));
 				cartQuantity = 0;
 				products.items = [];
 				products.total = 0;
@@ -369,31 +367,6 @@ app.get('/add-to-cart/:id', function(request, response) {
 		}
 	   }
 	}
-});
-
-app.get('/go-to-cart', function(request, response) {
-	
-	var del_url = shoppingCartServer + "clearCart/" + request.session.userid;
-	var waterfall = require('async-waterfall');
-	
-	waterfall([
-		function(callback){
-			var client = new Client();
-			var del = client.delete(del_url, function(request, response) {
-					callback(null);
-			});
-			
-			del.on('error', function(err) {
-					console.log("ERROR: " + err);
-					response.redirect("/");
-			});
-		},
-		function(callback){
-			dialog.info("Going To Shopping Cart", "Access Shopping Cart", function(code) {
-					response.redirect("/shopping-cart");
-			});
-		}
-	]);
 });
 
 app.get('/post-cart', function(request, response) {
@@ -517,10 +490,30 @@ app.post('/signin', function(request, response) {
 					{
 						if (this.readyState === 4 && this.status === 200) 
 						{
-							var products_array = JSON.parse(this.responseText);
-							isLoggedIn = true;
-							request.session.userid = request.body.inputUsername;
-							return response.render('./pages/product_catalog', {products: products_array, login: isLoggedIn, cartQuantity: cartQuantity});
+							var client = new Client();
+							var prods = JSON.parse(this.responseText);
+							var get_url = shoppingCartServer + "history/" + request.body.inputUsername;
+							var del_url = shoppingCartServer + "clearCart/" + request.body.inputUsername;
+							client.get(get_url, function(data, resp) {
+									if(data[0]){
+										for (i = 0; i < data[0].items.length; i++) {
+											products.items.push({
+												"name": data[0].items[i].name,
+												"count": data[0].items[i].count,
+												"rate": data[0].items[i].rate
+											});
+											cartQuantity += data[0].items[i].count;
+										}
+										products.total = data[0].total;
+									}
+									var products_array = prods;
+									isLoggedIn = true;
+									request.session.userid = request.body.inputUsername;
+									client.delete(del_url, function(data, resp) {
+										return response.render('./pages/product_catalog', {products: products_array, login: isLoggedIn, cartQuantity: cartQuantity});	
+									});
+									
+							});
 						}
 					}
 				}
@@ -561,6 +554,43 @@ app.get('/', function(request, response){
 
 app.get('/logout', function(request, response){
 	console.log ("In logout");
+	
+	if (cartQuantity > 0) {
+		var client = new Client();
+		
+		var args = {
+			data: {
+				"userId": request.session.userid,
+				"items": products.items
+			},
+			headers: {"Content-Type": "application/json"}	
+		};
+		var url = shoppingCartServer + "order/" + request.session.userid;
+		
+		var post = client.post(url,args,function(data, resp) {
+			isLoggedIn = false;
+			request.session.destroy();
+			cartQuantity = 0;
+			products.items = [];
+			products.total = 0;
+			response.redirect("/");
+		});
+		
+		post.on("error",function(err) {
+				console.log(err);
+				return response.redirect(request.get('referer'));
+		});
+	}
+	else {
+		isLoggedIn = false;
+		request.session.destroy();
+		cartQuantity = 0;
+		products.items = [];
+		products.total = 0;
+		response.redirect("/");
+	}
+	
+	/*
 	var xmlhttp = new XMLHttpRequest(); 
 	xmlhttp.open("GET", productCatalogServer+ "products");  
 	xmlhttp.setRequestHeader("Content-Type", "application/json");
@@ -572,10 +602,12 @@ app.get('/logout', function(request, response){
 			isLoggedIn = false;
 			request.session.destroy();
 			cartQuantity = 0;
+			products.items = [];
+			products.total = 0;
 			response.redirect("/");
-			//response.render('./pages/product_catalog', {products: products_array, login: isLoggedIn, cartQuantity: cartQuantity});
 		}
 	}
+	*/
 });
 
 app.listen(process.env.PORT || 5000, function() {

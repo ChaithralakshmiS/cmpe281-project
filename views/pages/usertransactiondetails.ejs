@@ -1,54 +1,36 @@
+<!DOCTYPE html>
 <!-- views/pages/userid.ejs -->
 <head>
-    <% include ../common/head %>
+<% include ../common/head %>
 </head>
 <% include ../common/body %>
 <main>
-<div class="jumbotron">
-
-
+<div class="container-fluid">
+<div class="row">
+<div class="col-md-8 col-md-offset-2">
     <h2>Your Transaction Details</h2>
 
     <form action="/gettransactions" method="GET">
 
 	<input type="hidden" name="user_id" value=<%= userid%>>
 
-	<table>
+	<table class ="table table-striped">
 	    <tr>
-		<td>&nbsp;</td>
+		<th>Transaction Id: </th><td colspan="3"><%= transactionid %></td>
 	    </tr>
 	    <tr>
-		<td> Transaction Id :
-		    <%= transactionid%>
-		</td>
+		<th>Transaction Date:</th><td colspan="3"><%= transactiondate %></td>
 	    </tr>
 	    <tr>
-		<td>&nbsp;</td>
+		<th> Transaction Total: </th><td colspan="3"><%= transactiontotal%></td>
 	    </tr>
-	    <tr>
-		<td> Transaction Date :
-		    <%= transactionddate%>
-		</td>
+	    <tr><th scope="column">Books</th><th scope="column">Quantity</th><th scope="column">Rate</th>
+		<th scope="column">Total Items Price</th> 
 	    </tr>
-	    <tr>
-		<td>&nbsp;</td>
-	    </tr>
-	    <tr>
-		<td> Transaction Total :
-		    <%= transactiontotal%>
-		</td>
-	    </tr>
-	    <tr>
-		<td>&nbsp;</td>
-	    </tr>
-	    
-	    <table>
-	    <tr><th>&nbsp;&nbsp; Books &nbsp;&nbsp;</th><th>&nbsp;&nbsp; Quantity &nbsp;&nbsp;</th>
-		<th> &nbsp;&nbsp;Rate &nbsp;&nbsp;</th> <th> &nbsp;&nbsp;Total Items Price &nbsp;&nbsp;</th> </tr>
 
 		    <% for(var i=0; i < arr.length; i++) { %>
 		      
-			<tr>
+	    <tr>
 		    <td>&nbsp;&nbsp; <%=  arr[i].product %>&nbsp;&nbsp;</td>
 		    <td>&nbsp;&nbsp; <%=  arr[i].quantity %> &nbsp;&nbsp;</td>
 		    <td>&nbsp;&nbsp; <%=  arr[i].rate %>&nbsp;&nbsp;</td>
@@ -62,11 +44,12 @@
 	    </table>
 
 	</table>
-
-	<input type="submit" value="Back to Transactions History">  
+	<br>
+	<input type="submit" class="btn btn-primary" value="Back to Transactions History">  
 
     </form>
 
-
+</div>
+</div>
 </div>
 </main>
