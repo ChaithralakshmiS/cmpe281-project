@@ -383,7 +383,7 @@ app.post('/signup', function(request, response) {
 	}
 	
 	var xmlhttp = new XMLHttpRequest();
-	xmlhttp.open("POST", userloginServer+ "user");
+	xmlhttp.open("POST", userloginServer + "user");
 	xmlhttp.setRequestHeader("Content-Type", "application/json");
 	var temp_userId = request.body.inputUsername;
 	var jsonToSend = {
@@ -392,8 +392,8 @@ app.post('/signup', function(request, response) {
 		"Email": request.body.inputPassword
 	};
 	xmlhttp.send(JSON.stringify(jsonToSend));
-    xmlhttp.onreadystatechange = function() 
-    {
+	    xmlhttp.onreadystatechange = function() 
+	    {
    		if (this.readyState === 4 && this.status === 200) 
 		{
 			isLoggedIn = true;
@@ -402,6 +402,11 @@ app.post('/signup', function(request, response) {
 			cartQuantity = 0;
 			response.redirect("/")
 			//response.render('./pages/product_catalog', {products: products_array, login: isLoggedIn, cartQuantity: cartQuantity});
+		}
+		else if (this.readyState === 4 && this.status !== 200)
+		{
+			console.log("Cannot post to user database");
+			response.redirect("/");
 		}
 	}	
 });
@@ -453,8 +458,15 @@ app.post('/signin', function(request, response) {
 									var products_array = prods;
 									isLoggedIn = true;
 									request.session.userid = request.body.inputUsername;
-									client.delete(del_url, function(data, resp) {
+									var delete_cart = client.delete(del_url, function(data, resp) {
 										return response.render('./pages/product_catalog', {products: products_array, login: isLoggedIn, cartQuantity: cartQuantity});	
+									});
+									
+									delete_cart.on("error", function(err) {
+											console.log(err);
+											request.session.destroy();
+											isLoggedIn = false;
+											response.redirect("/");
 									});
 									
 							});
@@ -466,6 +478,7 @@ app.post('/signin', function(request, response) {
 				}
 			}
 			else if (this.readyState === 4 && this.status !== 200) {
+				console.log("Cannot get from the user database")
 				response.redirect(request.get('referer'));
 			}
 		}
