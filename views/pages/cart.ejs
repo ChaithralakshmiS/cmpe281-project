@@ -31,9 +31,12 @@
 	<% if(items.length <= 0) { %>
 	<h4 class="card-title">Cart is Empty...Add Some items to view</h4>
 	<% } %>
-	<a class="btn btn-primary" href="/post-cart">Checkout</a>
 	<% if(items.length > 0) { %>
+	<a class="btn btn-primary" href="/post-cart">Checkout</a>
 	<a class="btn btn-secondary" href="/">Go to Products</a>
+	<% } %>
+	<% if(items.length <= 0) { %>
+	<a class="btn btn-primary" href="/">Go to Products</a>
 	<% } %>
     </div>
 </div>
