@@ -7,7 +7,6 @@ var bodyParser = require('body-parser');
 var csurf = require('csurf');
 var session = require('express-session');
 var cookieParser = require('cookie-parser');
-var dialog = require('dialog');
 var Client = require('node-rest-client').Client;
 
 var favicon = require('serve-favicon');
@@ -49,10 +48,6 @@ products.items = [];
 products.total = 0;
 
 app.post('/getusertransactiondetails', function (req, res) {
-  console.log("start of getusertransactiondetails.");
-  console.log(req.body);
-
-
   //User_id missing in input
   if (!req.session.userid) {
     var userhistoryerror = "User id is missing";
@@ -61,7 +56,6 @@ app.post('/getusertransactiondetails', function (req, res) {
       login: isLoggedIn,
       cartQuantity: cartQuantity
     });
-    console.log("User id is not being sent");
   }
   //Transaction_id missing in input
   else if (!req.body.transaction_id) {
@@ -73,7 +67,6 @@ app.post('/getusertransactiondetails', function (req, res) {
       login: isLoggedIn,
       cartQuantity: cartQuantity
     });
-    console.log("Transaction id missing");
   }
 
 
@@ -96,8 +89,6 @@ app.post('/getusertransactiondetails', function (req, res) {
       }
     
       var response = JSON.stringify(data);	
-      console.log("Response received from goapi");
-      console.log(response);
 
       //User Id / Transaction details not found in Riak database
       if (response == "[]") {
@@ -113,8 +104,6 @@ app.post('/getusertransactiondetails', function (req, res) {
       //No error.Prepare output for html
      
       var arr_parse = JSON.parse(response);
-      console.log("Parsed data");
-      console.log(arr_parse);
 
       //send to html
       var userid = req.session.userid;
@@ -122,13 +111,7 @@ app.post('/getusertransactiondetails', function (req, res) {
       var transactionddate = arr_parse.uTransactionsDate;
       var transactiontotal = arr_parse.uTransactiontotal;
       var transactionitems = arr_parse.uTransactionItems;
-      //
-      console.log(transactionid);
-      console.log(transactionddate);
-      console.log(transactiontotal);
 
-
-      console.log("end of getusertransactiondetails.");
       
       //Render
       res.render('pages/usertransactiondetails', {
@@ -149,11 +132,9 @@ app.post('/getusertransactiondetails', function (req, res) {
 app.get('/gettransactions', function (req, res) {
 
   var userhistoryerror = "";
-  console.log("start of gettransactions.");
 
   //If user_id is empty, send error message
   if (!req.session.userid) {
-    console.log("User id Input missing");
     var userhistoryerror = "User id is Missing. Please enter a user id";
     res.render('pages/userhistoryerror', {
       userhistoryerror: userhistoryerror,
@@ -166,10 +147,8 @@ app.get('/gettransactions', function (req, res) {
   
   //All required inputs have been received
   else {
-    console.log("All required inputs have been received");
     var client = new Client();
     var url = UserOrderHistoryServer + "getusertransactions/" + req.session.userid;
-    console.log("Calling goapi");
     
   
     client.get(url, function (data, response) {
@@ -185,10 +164,6 @@ app.get('/gettransactions', function (req, res) {
       }
       
      var response = JSON.stringify(data);
-      
-      //Response received from goapi
-      console.log("Response received from goapi");
-      console.log(data);
 
       //No Transactions found or User Id not found
       if (response == "[]") {
@@ -201,9 +176,6 @@ app.get('/gettransactions', function (req, res) {
         });
 	return;
       }
-      //No error. Send the transaction history
-      console.log(response);
-      console.log("end of gettransactions.");
 
       //Render the page
       res.render('pages/usertransactions', {
@@ -224,7 +196,6 @@ app.get('/checkout', function(request, response){
 			var url = shoppingCartServer + "history/" + request.session.userid;
 			var read = client.get(url, function(data, get_resp) {
 				var obj_data = data[0];
-				console.log("DATA RECEIVED:" + JSON.stringify(obj_data));
 				var isLoggedIn = true;
 				response.render('shop/checkout', {login: isLoggedIn, totalAmount: obj_data.total, cartQuantity: cartQuantity, products: obj_data.items});
 			});
@@ -286,38 +257,29 @@ app.post('/checkout', function(request, response){
 			headers: { "Content-Type": "application/json"}
 		}
 		
-		console.log("History DATA: " + JSON.stringify(uh_args.data));
 		try {
 		var hist_post = client.post(history_url, uh_args, function(data, history_resp) {
-				console.log("USER HISTORY POST DATA: " + JSON.stringify(data));
 				cartQuantity = 0;
 				products.items = [];
 				products.total = 0;
 				
 				var url = shoppingCartServer + "clearCart/" + request.session.userid;
 				client.delete(url, function(data, resp) {
-					dialog.info(processed_data.Status, "Payment Placement", function(code){
 						response.redirect("/");
-					});
 				});
 		});
 		}catch(e) {
-			console.log("Error handled");
 			response.redirect("/");
 		}
 		
 		hist_post.on("error", function(err) {
-				console.log("Error Parsing request!");
 				response.redirect(request.get('referer'));
 		});
 		
 	});
 	
 	send_post.on('error', function(err) {
-		console.log(err.toString())
-		dialog.warn("Payment did not process", "Payment Placement Failure", function(code) {
-				response.redirect(request.get('referer'));
-		});
+		response.redirect(request.get('referer'));
 	});
 	
 });
@@ -361,8 +323,6 @@ app.get('/add-to-cart/:id', function(request, response) {
 			
 			cartQuantity++;
 			
-			//console.log(products.items);
-			
 			return response.redirect(request.get('referer'));
 		}
 	   }
@@ -378,20 +338,14 @@ app.get('/post-cart', function(request, response) {
 			headers: { "Content-Type": "application/json"}
 		};
 		
-		console.log("ARGS: " + JSON.stringify(args));
-		
 		var url = shoppingCartServer + "order/" + request.session.userid;
 					
 		var send_post = client.post(url, args, function(data, resp) {
-				console.log("RESPONSE: " + JSON.stringify(data));
 				response.redirect("/checkout");
 		});
 		
 		send_post.on('error', function(err) {
-			console.log(err.toString())
-			dialog.warn("Could not add to cart", "Add to Cart Failure", function(code) {
-					response.redirect(request.get('referer'));
-			});
+			response.redirect(request.get('referer'));
 		});
 		
 });	
@@ -423,9 +377,7 @@ app.get('/signup', function(request, response) {
 });
 
 app.post('/signup', function(request, response) {
-	console.log("before POST");
 	if(request.body.submit == "Cancel") {
-		console.log("Cancel was pressed");
 		response.redirect('/');
 		return;
 	}
@@ -439,16 +391,11 @@ app.post('/signup', function(request, response) {
 		"Name":  request.body.name,
 		"Email": request.body.inputPassword
 	};
-	console.log(JSON.stringify(jsonToSend));
 	xmlhttp.send(JSON.stringify(jsonToSend));
     xmlhttp.onreadystatechange = function() 
     {
-    	console.log("here");
-    	console.log (this.status);
-    	console.log(this.readyState);
    		if (this.readyState === 4 && this.status === 200) 
 		{
-			console.log("User API call successful. Status: " + this.status);
 			isLoggedIn = true;
 			request.session.userid = request.body.inputUsername;
 			var products_array = JSON.parse(this.responseText);
@@ -461,14 +408,12 @@ app.post('/signup', function(request, response) {
 
 app.get('/signin', function(request, response) { 
 	if (request.session.userid) {
-		console.log("Already logged in");
 		return response.redirect("/");
 	}
 	response.render('user/signin', {login: isLoggedIn, cartQuantity: cartQuantity});
 });
 
 app.post('/signin', function(request, response) {
-		console.log("In Signin");
 		inputID = parseInt(request.body.inputUsername);
 		var xmlhttp = new XMLHttpRequest(); 
 		xmlhttp.open("GET", userloginServer+ "user/" +inputID);  
@@ -478,7 +423,6 @@ app.post('/signin', function(request, response) {
 		{
 			if (this.readyState === 4 && this.status === 200) 
 			{
-				console.log("API call to user API successful. Status: " + this.status);
 				var responseText = JSON.parse(this.responseText);
 				if (responseText.UserId == inputID)
 				{
@@ -518,22 +462,17 @@ app.post('/signin', function(request, response) {
 					}
 				}
 				else {
-					dialog.warn("User not found", "Not Found User", function(code) {
-						response.redirect(request.get('referer'));
-					});
+					response.redirect(request.get('referer'));
 				}
 			}
 			else if (this.readyState === 4 && this.status !== 200) {
-				dialog.warn("System is currently not available", "Part of system down", function(code) {
-						response.redirect(request.get('referer'));
-				});
+				response.redirect(request.get('referer'));
 			}
 		}
 		
 });
 
 app.get('/', function(request, response){
-	console.log("In Homepage fetch ");
 	if (request.session.userid) {
 		isLoggedIn = true;
 	}
@@ -553,7 +492,6 @@ app.get('/', function(request, response){
 });
 
 app.get('/logout', function(request, response){
-	console.log ("In logout");
 	
 	if (cartQuantity > 0) {
 		var client = new Client();
@@ -577,7 +515,6 @@ app.get('/logout', function(request, response){
 		});
 		
 		post.on("error",function(err) {
-				console.log(err);
 				return response.redirect(request.get('referer'));
 		});
 	}
@@ -589,25 +526,6 @@ app.get('/logout', function(request, response){
 		products.total = 0;
 		response.redirect("/");
 	}
-	
-	/*
-	var xmlhttp = new XMLHttpRequest(); 
-	xmlhttp.open("GET", productCatalogServer+ "products");  
-	xmlhttp.setRequestHeader("Content-Type", "application/json");
-	xmlhttp.send();
-	xmlhttp.onreadystatechange = function() {
-		if (this.readyState === 4 && this.status === 200) {
-			console.log("API call to product API successful. Status: " + this.status);
-			var products_array = JSON.parse(this.responseText);
-			isLoggedIn = false;
-			request.session.destroy();
-			cartQuantity = 0;
-			products.items = [];
-			products.total = 0;
-			response.redirect("/");
-		}
-	}
-	*/
 });
 
 app.listen(process.env.PORT || 5000, function() {
