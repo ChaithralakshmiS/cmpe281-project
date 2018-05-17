@@ -14,9 +14,9 @@ This app is a cloud scaled app developed in node.js running with five different 
 
 The following is the architecture for the website:
 
-![alt text](/Documentation/Overview_Webapp_Backend.png)
+![281_arch_diagram](https://user-images.githubusercontent.com/25673997/40156841-acd98380-5950-11e8-99ff-5a4f0c3678ae.png)
 
-Run the node.js app from the main.js file inside the Apps directory
+Run the node.js app from the app.js file
 
 Thank you for stopping by!
 
