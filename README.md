@@ -3,6 +3,13 @@
 
 **PURPOSE OF PROJECT:** To build a cloud scale SaaS Service on Amazon Cloud and Heroku using the basic scaling design approaches.
 
+### Team Members
+1. [Chaithra Lakshmi Sathyanarayana](https://github.com/ChaithralakshmiS)
+2. [Luis Otero](https://github.com/penguinarmy94)
+3. [Mithun Harikumar Nair](https://github.com/mhn10)
+4. [Radhika Srinivasan](https://github.com/radhikasrinivasan8)
+5. [Sowmya Gowrishankar] (https://github.com/sowmyagowri)
+
 This app is a cloud scaled app developed in node.js running with five different APIs developed in the Golang programming language. In this app, the users, payment, products, purchase history, and cart are separate from each other, but they join together in the main application. 
 
 1. Sign-up or login to the application
